@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"os"
@@ -31,23 +32,37 @@ const (
 	Delay time.Duration = 29 * time.Minute
 )
 
+var (
+	repoFlag string
+	pushFlag bool
+)
+
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Println("Usage: git-stack-watch <repository-path>")
-		fmt.Println("Example: git-stack-watch /path/to/repo")
+	// Define flags
+	flag.StringVar(&repoFlag, "repo", "", "/path/to/repo")
+	flag.BoolVar(&pushFlag, "push", false, "Push to remote after committing changes")
+	flag.Parse()
+
+	// Get repository path from remaining args
+	if repoFlag == "" {
+		fmt.Println("Usage: git-stack-watch [OPTIONS] --repo <repository-path>")
+		fmt.Println("\nOptions:")
+		flag.PrintDefaults()
+		fmt.Println("\nExample: git-stack-watch --repo /path/to/repo --push")
 		os.Exit(1)
 	}
 
-	repoPath := os.Args[1]
-
 	// Open the git repository
-	repo, err := git.PlainOpen(repoPath)
+	repo, err := git.PlainOpen(repoFlag)
 	if err != nil {
 		log.Fatalf("Failed to open repository: %v", err)
 	}
 
-	log.Printf("Starting git-stack-watch for repository: %s", repoPath)
+	log.Printf("Starting git-stack-watch for repository: %s", repoFlag)
 	log.Printf("Checking for changes every 29 minutes...")
+	if pushFlag {
+		log.Println("/!\\ Push to remote is enabled.")
+	}
 	log.Println("Press Ctrl+C to stop")
 
 	// Create a ticker that fires every 29 minutes
@@ -59,14 +74,14 @@ func main() {
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
 	// Run immediately on startup
-	checkAndCommit(repo, repoPath)
+	checkAndCommit(repo, repoFlag)
 
 	// Main loop
 	for {
 		select {
 		case <-ticker.C:
 			// Ticker fired - check for changes and commit
-			checkAndCommit(repo, repoPath)
+			checkAndCommit(repo, repoFlag)
 		case <-sigChan:
 			// Received interrupt signal - gracefully shutdown
 			fmt.Println("\nReceived interrupt signal, shutting down...")
