@@ -61,7 +61,7 @@ func main() {
 	log.Printf("Starting git-stack-watch for repository: %s", repoFlag)
 	log.Printf("Checking for changes every 29 minutes...")
 	if pushFlag {
-		log.Println("/!\\ Push to remote is enabled.")
+		log.Println("/!\\ Auto-push to remote is enabled.")
 	}
 	log.Println("Press Ctrl+C to stop")
 
@@ -128,6 +128,14 @@ func checkAndCommit(repo *git.Repository, repoPath string) {
 		if err != nil {
 			fmt.Printf("Failed to commit %s: %v", change.StackName, err)
 			continue
+		}
+	}
+
+	if pushFlag {
+		fmt.Println()
+		err := pushToRemote(repo)
+		if err != nil {
+			fmt.Printf("Failed to push to remote: %v\n", err)
 		}
 	}
 }
@@ -210,5 +218,26 @@ func commitStackChange(worktree *git.Worktree, repo *git.Repository, change Chan
 	// Log the commit hash
 	log.Printf("✓ Created commit %s: %s\n", commit.String()[:7], commitMsg)
 
+	return nil
+}
+
+// pushToRemote pushes the commits to the remote repository
+func pushToRemote(repo *git.Repository) error {
+	log.Println("Pushing to remote...")
+
+	err := repo.Push(&git.PushOptions{})
+	if err != nil {
+		if err == git.NoErrAlreadyUpToDate {
+			log.Println("✓ Already up to date")
+			return nil
+		}
+		if err == git.ErrRemoteNotFound {
+			log.Println("x No remote available, please add one!")
+			return err
+		}
+		return fmt.Errorf("push failed: %w", err)
+	}
+
+	log.Println("✓ Successfully pushed to remote")
 	return nil
 }
