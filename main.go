@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v6"
+	"github.com/go-git/go-git/v6/plumbing/transport/ssh"
 )
 
 // enum ChangeType
@@ -35,6 +36,8 @@ const (
 var (
 	repoFlag string
 	pushFlag bool
+
+	sshkeyPath string
 )
 
 func main() {
@@ -50,6 +53,15 @@ func main() {
 		flag.PrintDefaults()
 		fmt.Println("\nExample: git-stack-watch --repo /path/to/repo --push")
 		os.Exit(1)
+	}
+
+	keypath := os.Getenv("SSHKEY_PATH")
+	if keypath != "" {
+		sshkeyPath = keypath
+		log.Printf("Using SSH key at %s\n", sshkeyPath)
+	} else {
+		sshkeyPath = "/root/.ssh/id_ed25519"
+		log.Printf("No SSHKEY_PATH env set, using default SSH key path at %s\n", sshkeyPath)
 	}
 
 	// Open the git repository
@@ -232,7 +244,14 @@ func commitStackChange(worktree *git.Worktree, repo *git.Repository, change Chan
 func pushToRemote(repo *git.Repository) error {
 	log.Println("Pushing to remote...")
 
-	err := repo.Push(&git.PushOptions{})
+	auth, err := ssh.NewPublicKeysFromFile("git", sshkeyPath, "")
+	if err != nil {
+		return fmt.Errorf("failed to create SSH auth: %w", err)
+	}
+
+	err = repo.Push(&git.PushOptions{
+		Auth: auth,
+	})
 	if err != nil {
 		if err == git.NoErrAlreadyUpToDate {
 			log.Println("✓ Already up to date")

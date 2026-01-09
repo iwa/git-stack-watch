@@ -12,6 +12,12 @@ Options:
         Push changes after committing
 ```
 
+Env vars:
+```
+  SSHKEY_PATH=/path/to/key
+        Path to the SSH private key to use for git operations (default: /root/.ssh/id_rsa)
+```
+
 ### Docker Compose
 
 ```yaml
