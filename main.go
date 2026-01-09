@@ -139,7 +139,12 @@ func checkAndCommit(repo *git.Repository, repoPath string) {
 		if err != nil {
 			fmt.Printf("Failed to push to remote: %v\n", err)
 		}
+	} else if commitCount == 0 {
+		fmt.Println()
+		log.Println("No commits were created, skipping push.")
 	}
+
+	log.Println("Done.\n")
 }
 
 // findComposeChanges scans the git status for compose.yml/compose.yaml changes
