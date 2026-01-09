@@ -4,7 +4,10 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/signal"
 	"path/filepath"
+	"syscall"
+	"time"
 
 	"github.com/go-git/go-git/v6"
 )
@@ -24,6 +27,10 @@ type Change struct {
 	ChangeType ChangeType
 }
 
+const (
+	Delay time.Duration = 29 * time.Minute
+)
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Println("Usage: git-stack-watch <repository-path>")
@@ -39,16 +46,50 @@ func main() {
 		log.Fatalf("Failed to open repository: %v", err)
 	}
 
+	log.Printf("Starting git-stack-watch for repository: %s", repoPath)
+	log.Printf("Checking for changes every 29 minutes...")
+	log.Println("Press Ctrl+C to stop")
+
+	// Create a ticker that fires every 29 minutes
+	ticker := time.NewTicker(Delay)
+	defer ticker.Stop()
+
+	// Create a channel to listen for interrupt signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
+
+	// Run immediately on startup
+	checkAndCommit(repo, repoPath)
+
+	// Main loop
+	for {
+		select {
+		case <-ticker.C:
+			// Ticker fired - check for changes and commit
+			checkAndCommit(repo, repoPath)
+		case <-sigChan:
+			// Received interrupt signal - gracefully shutdown
+			fmt.Println("\nReceived interrupt signal, shutting down...")
+			return
+		}
+	}
+}
+
+func checkAndCommit(repo *git.Repository, repoPath string) {
+	log.Println("Checking for compose file changes...")
+
 	// Get the worktree
 	worktree, err := repo.Worktree()
 	if err != nil {
-		log.Fatalf("Failed to get worktree: %v", err)
+		fmt.Printf("Failed to get worktree: %v", err)
+		return
 	}
 
 	// Get the current status
 	status, err := worktree.Status()
 	if err != nil {
-		log.Fatalf("Failed to get status: %v", err)
+		fmt.Printf("Failed to get status: %v", err)
+		return
 	}
 
 	// Find all compose file changes
@@ -64,12 +105,13 @@ func main() {
 		fmt.Printf("  - %s %s (%s)\n", change.ChangeType, change.StackName, change.FilePath)
 	}
 
+	fmt.Println()
+
 	// Create a commit for each stack change
 	for _, change := range changes {
-		fmt.Println()
 		err := commitStackChange(worktree, repo, change)
 		if err != nil {
-			log.Printf("Failed to commit %s: %v", change.StackName, err)
+			fmt.Printf("Failed to commit %s: %v", change.StackName, err)
 			continue
 		}
 	}
@@ -151,7 +193,7 @@ func commitStackChange(worktree *git.Worktree, repo *git.Repository, change Chan
 	}
 
 	// Log the commit hash
-	log.Printf("✓ Created commit %s: %s", commit.String()[:7], commitMsg)
+	log.Printf("✓ Created commit %s: %s\n", commit.String()[:7], commitMsg)
 
 	return nil
 }
