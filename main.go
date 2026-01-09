@@ -123,15 +123,17 @@ func checkAndCommit(repo *git.Repository, repoPath string) {
 	fmt.Println()
 
 	// Create a commit for each stack change
+	commitCount := 0
 	for _, change := range changes {
 		err := commitStackChange(worktree, repo, change)
 		if err != nil {
 			fmt.Printf("Failed to commit %s: %v", change.StackName, err)
 			continue
 		}
+		commitCount++
 	}
 
-	if pushFlag {
+	if pushFlag && commitCount > 0 {
 		fmt.Println()
 		err := pushToRemote(repo)
 		if err != nil {
