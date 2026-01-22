@@ -156,7 +156,7 @@ func checkAndCommit(repo *git.Repository, repoPath string) {
 		log.Println("No commits were created, skipping push.")
 	}
 
-	log.Println("Done.\n")
+	log.Print("Done.\n\n")
 }
 
 // findComposeChanges scans the git status for compose.yml/compose.yaml changes
