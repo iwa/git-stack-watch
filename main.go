@@ -34,8 +34,9 @@ const (
 )
 
 var (
-	repoFlag string
-	pushFlag bool
+	repoFlag       string
+	pushFlag       bool
+	authMethodFlag string
 
 	sshkeyPath string
 )
@@ -44,6 +45,7 @@ func main() {
 	// Define flags
 	flag.StringVar(&repoFlag, "repo", "", "/path/to/repo")
 	flag.BoolVar(&pushFlag, "push", false, "Push to remote after committing changes")
+	flag.StringVar(&authMethodFlag, "auth", "", "Auth method for the repo ('ssh', 'http', or empty for no auth)")
 	flag.Parse()
 
 	// Get repository path from remaining args
@@ -55,13 +57,23 @@ func main() {
 		os.Exit(1)
 	}
 
-	keypath := os.Getenv("SSHKEY_PATH")
-	if keypath != "" {
-		sshkeyPath = keypath
-		log.Printf("Using SSH key at %s\n", sshkeyPath)
+	// Define Auth method
+	if authMethodFlag == "ssh" {
+		log.Println("Auth method: SSH")
+		log.Println("Will now check for a correct SSH Key Path...")
+
+		keypath := os.Getenv("SSHKEY_PATH")
+		if keypath != "" {
+			sshkeyPath = keypath
+			log.Printf("Using SSH key at %s\n", sshkeyPath)
+		} else {
+			sshkeyPath = "/root/.ssh/id_ed25519"
+			log.Printf("No SSHKEY_PATH env set, using default SSH key path at %s\n", sshkeyPath)
+		}
+	} else if authMethodFlag == "http" {
+		log.Panicln("Not implemented yet!")
 	} else {
-		sshkeyPath = "/root/.ssh/id_ed25519"
-		log.Printf("No SSHKEY_PATH env set, using default SSH key path at %s\n", sshkeyPath)
+		log.Println("No Auth method!")
 	}
 
 	// Open the git repository
@@ -244,14 +256,21 @@ func commitStackChange(worktree *git.Worktree, repo *git.Repository, change Chan
 func pushToRemote(repo *git.Repository) error {
 	log.Println("Pushing to remote...")
 
-	auth, err := ssh.NewPublicKeysFromFile("git", sshkeyPath, "")
-	if err != nil {
-		return fmt.Errorf("failed to create SSH auth: %w", err)
+	var err error
+
+	if authMethodFlag == "ssh" {
+		auth, e := ssh.NewPublicKeysFromFile("git", sshkeyPath, "")
+		if e != nil {
+			return fmt.Errorf("failed to create SSH auth: %w", err)
+		}
+
+		err = repo.Push(&git.PushOptions{
+			Auth: auth,
+		})
+	} else {
+		err = repo.Push(&git.PushOptions{})
 	}
 
-	err = repo.Push(&git.PushOptions{
-		Auth: auth,
-	})
 	if err != nil {
 		if err == git.NoErrAlreadyUpToDate {
 			log.Println("✓ Already up to date")
